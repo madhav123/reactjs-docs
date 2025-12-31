@@ -1,0 +1,884 @@
+
+You > git copilot script for -writ a slice with reducer, configure same in store with file names
+Okay, here's a Git Copilot script to generate a Redux Toolkit slice with a reducer and configure it in your store, along with recommended file names and usage instructions.
+
+---
+
+**Git Copilot Prompt:**
+
+"Generate a Redux Toolkit slice with an example reducer (e.g., for a 'counter' or 'item' feature) and show how to configure it in the main store file. Include file names and TypeScript types for best practices."
+
+---
+
+**Git Copilot Response:**
+
+Alright, let's create a Redux Toolkit slice for a common scenario, like managing a list of `items`, and then integrate it into your Redux store.
+
+This setup assumes you're using TypeScript and have `@reduxjs/toolkit` and `react-redux` installed.
+
+```bash
+npm install @reduxjs/toolkit react-redux
+# or
+yarn add @reduxjs/toolkit react-redux
+```
+
+---
+
+### **1. The Slice Definition (`src/features/items/itemsSlice.ts`)**
+
+This file will contain your slice's state, reducers, and actions.
+
+```typescript
+// src/features/items/itemsSlice.ts
+
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+// Define the type for an individual item
+export interface Item {
+  id: string;
+  name: string;
+  quantity: number;
+  completed: boolean;
+}
+
+// Define the type for the slice's state
+export interface ItemsState {
+  list: Item[];
+  status: 'idle' | 'loading' | 'succeeded' | 'failed';
+  error: string | null;
+}
+
+// Define the initial state using that type
+const initialState: ItemsState = {
+  list: [],
+  status: 'idle',
+  error: null,
+};
+
+export const itemsSlice = createSlice({
+  name: 'items', // This is the slice name, used in action types (e.g., 'items/addItem')
+  initialState,
+  reducers: {
+    // Reducer to add a new item
+    addItem: (state, action: PayloadAction<Omit<Item, 'id' | 'completed'>>) => {
+      const newItem: Item = {
+        id: Date.now().toString(), // Simple unique ID
+        name: action.payload.name,
+        quantity: action.payload.quantity,
+        completed: false,
+      };
+      state.list.push(newItem);
+    },
+    // Reducer to remove an item by its ID
+    removeItem: (state, action: PayloadAction<string>) => {
+      state.list = state.list.filter(item => item.id !== action.payload);
+    },
+    // Reducer to toggle an item's completion status
+    toggleItemCompletion: (state, action: PayloadAction<string>) => {
+      const item = state.list.find(item => item.id === action.payload);
+      if (item) {
+        item.completed = !item.completed;
+      }
+    },
+    // Reducer to update an item's quantity
+    updateItemQuantity: (state, action: PayloadAction<{ id: string; newQuantity: number }>) => {
+      const item = state.list.find(item => item.id === action.payload.id);
+      if (item) {
+        item.quantity = action.payload.newQuantity;
+      }
+    },
+    // Reducer to clear all items
+    clearItems: (state) => {
+      state.list = [];
+    },
+    // You can add more reducers here as needed
+  },
+  // extraReducers: (builder) => {
+  //   // Used for handling actions created by other slices or createAsyncThunk
+  // }
+});
+
+// Action creators are generated for each case reducer function
+export const { addItem, removeItem, toggleItemCompletion, updateItemQuantity, clearItems } = itemsSlice.actions;
+
+// Export the reducer to be added to the store
+export default itemsSlice.reducer;
+```
+
+---
+
+### **2. Store Configuration (`src/app/store.ts`)**
+
+This file sets up your Redux store, bringing together all your slices.
+
+```typescript
+// src/app/store.ts
+
+import { configureStore } from '@reduxjs/toolkit';
+import itemsReducer from '../features/items/itemsSlice'; // Import the reducer from your slice
+
+export const store = configureStore({
+  reducer: {
+    // Add your reducers here.
+    // The key here ('items') will be the name of the state slice in your Redux store.
+    items: itemsReducer,
+    // If you had other slices (e.g., usersSlice), you'd add them like:
+    // users: usersReducer,
+  },
+  // You can add middleware, devTools, preloadedState, etc., here.
+  // middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(myCustomMiddleware),
+  // devTools: process.env.NODE_ENV !== 'production', // Enable Redux DevTools only in development
+});
+
+// Infer the `RootState` and `AppDispatch` types from the store itself
+export type RootState = ReturnType<typeof store.getState>;
+// Inferred type: {items: ItemsState, users: UsersState, ...}
+export type AppDispatch = typeof store.dispatch;
+```
+
+---
+
+### **3. Typed Hooks (Optional, but Recommended: `src/app/hooks.ts`)**
+
+To get proper TypeScript inference when using `useDispatch` and `useSelector`, it's best to create typed versions of them.
+
+```typescript
+// src/app/hooks.ts
+
+import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import type { RootState, AppDispatch } from './store';
+
+// Use throughout your app instead of plain `useDispatch` and `useSelector`
+export const useAppDispatch: () => AppDispatch = useDispatch;
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+```
+
+---
+
+### **4. Integrate into Your React App (`src/index.tsx` or `src/main.tsx`)**
+
+Finally, wrap your root component with the `Provider` from `react-redux`.
+
+```tsx
+// src/index.tsx (or src/main.tsx for Vite)
+
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import { Provider } from 'react-redux';
+import { store } from './app/store'; // Import your store
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <Provider store={store}> {/* Wrap your App with the Provider */}
+      <App />
+    </Provider>
+  </React.StrictMode>,
+);
+```
+
+---
+
+### **5. How to Use in a React Component (`src/App.tsx` or any other component)**
+
+Now you can dispatch actions and select state from your components.
+
+```tsx
+// src/App.tsx
+
+import React, { useState } from 'react';
+import { useAppDispatch, useAppSelector } from './app/hooks';
+import { addItem, removeItem, toggleItemCompletion, updateItemQuantity, clearItems } from './features/items/itemsSlice';
+
+function App() {
+  const dispatch = useAppDispatch();
+  const items = useAppSelector((state) => state.items.list); // Select the 'list' array from the 'items' slice
+  const itemsStatus = useAppSelector((state) => state.items.status);
+  const itemsError = useAppSelector((state) => state.items.error);
+
+  const [itemName, setItemName] = useState('');
+  const [itemQuantity, setItemQuantity] = useState(1);
+
+  const handleAddItem = () => {
+    if (itemName.trim()) {
+      dispatch(addItem({ name: itemName, quantity: itemQuantity }));
+      setItemName('');
+      setItemQuantity(1);
+    }
+  };
+
+  if (itemsStatus === 'loading') return <div>Loading items...</div>;
+  if (itemsStatus === 'failed') return <div>Error: {itemsError}</div>;
+
+  return (
+    <div style={{ padding: '20px', maxWidth: '600px', margin: 'auto' }}>
+      <h1>My Item List</h1>
+
+      <div>
+        <input
+          type="text"
+          value={itemName}
+          onChange={(e) => setItemName(e.target.value)}
+          placeholder="Item name"
+          style={{ marginRight: '10px' }}
+        />
+        <input
+          type="number"
+          value={itemQuantity}
+          onChange={(e) => setItemQuantity(Number(e.target.value))}
+          min="1"
+          style={{ width: '60px', marginRight: '10px' }}
+        />
+        <button onClick={handleAddItem}>Add Item</button>
+      </div>
+
+      <hr style={{ margin: '20px 0' }} />
+
+      {items.length === 0 ? (
+        <p>No items in the list. Add some!</p>
+      ) : (
+        <div>
+          <ul>
+            {items.map((item) => (
+              <li key={item.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={item.completed}
+                  onChange={() => dispatch(toggleItemCompletion(item.id))}
+                  style={{ marginRight: '10px' }}
+                />
+                <span
+                  style={{
+                    textDecoration: item.completed ? 'line-through' : 'none',
+                    marginRight: '10px',
+                    flexGrow: 1,
+                  }}
+                >
+                  {item.name} (Qty: {item.quantity})
+                </span>
+                <input
+                  type="number"
+                  value={item.quantity}
+                  onChange={(e) =>
+                    dispatch(updateItemQuantity({ id: item.id, newQuantity: Number(e.target.value) }))
+                  }
+                  min="1"
+                  style={{ width: '50px', marginRight: '10px' }}
+                />
+                <button onClick={() => dispatch(removeItem(item.id))}>Remove</button>
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => dispatch(clearItems())} style={{ marginTop: '15px', background: 'red', color: 'white', border: 'none', padding: '8px 15px', cursor: 'pointer' }}>
+            Clear All Items
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
+```
+
+---
+
+This setup provides a robust and type-safe way to manage state using Redux Toolkit. You can replicate the slice creation and store configuration pattern for any other feature in your application.
+
+You > write java examples on var keyword
+The `var` keyword in Java, introduced in **Java 10**, allows for **local-variable type inference**. This means you can declare a local variable without explicitly stating its type. The compiler will infer the variable's type from the type of the initializer expression.
+
+**Key Points:**
+
+1.  **Local Variables Only:** `var` can only be used for local variables. You cannot use it for fields, method parameters, method return types, or catch block parameters (though it can be used for lambda parameters since Java 11).
+2.  **Initialization Required:** A `var` variable **must** be initialized immediately when declared. The compiler needs the initializer to infer the type.
+3.  **Compile-Time Inference:** This is crucial. `var` is *not* dynamic typing like in JavaScript or Python. The type is inferred once at compile time and then fixed. The variable is strongly typed like any other Java variable.
+4.  **Readability vs. Obscurity:** Use `var` judiciously. It can improve readability by removing redundant type declarations, especially with complex generic types. However, if the initializer's type isn't immediately clear, explicitly stating the type might be better for code clarity.
+
+---
+
+## 1. Basic Usage and Examples
+
+Let's look at how `var` simplifies declarations.
+
+```java
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+public class VarKeywordExamples {
+
+    public static void main(String[] args) {
+
+        System.out.println("--- 1. Basic Type Inference ---");
+        // Traditional way
+        String message = "Hello, Java!";
+        int number = 100;
+        List<String> namesList = new ArrayList<>();
+
+        // With var
+        var varMessage = "Hello, var!"; // Inferred as String
+        var varNumber = 200;           // Inferred as int
+        var varDouble = 3.14;          // Inferred as double
+        var varLong = 123L;            // Inferred as long
+        var varBoolean = true;         // Inferred as boolean
+
+        System.out.println("varMessage type: " + varMessage.getClass().getName() + ", value: " + varMessage);
+        System.out.println("varNumber type: " + ((Object) varNumber).getClass().getName() + ", value: " + varNumber);
+        System.out.println("varDouble type: " + ((Object) varDouble).getClass().getName() + ", value: " + varDouble);
+        System.out.println("varLong type: " + ((Object) varLong).getClass().getName() + ", value: " + varLong);
+        System.out.println("varBoolean type: " + ((Object) varBoolean).getClass().getName() + ", value: " + varBoolean);
+        System.out.println();
+
+
+        System.out.println("--- 2. Complex Generic Types ---");
+        // Traditional way: often redundant
+        Map<String, List<Integer>> userScores = new HashMap<String, List<Integer>>();
+        userScores.put("Alice", new ArrayList<>(List.of(90, 85, 92)));
+
+        // With var: much cleaner
+        var varUserScores = new HashMap<String, List<Integer>>(); // Inferred as HashMap<String, List<Integer>>
+        varUserScores.put("Bob", new ArrayList<>(List.of(78, 88, 80)));
+        varUserScores.put("Charlie", new ArrayList<>(List.of(95, 90, 88)));
+
+        System.out.println("varUserScores type: " + varUserScores.getClass().getName() + ", value: " + varUserScores);
+        System.out.println();
+
+
+        System.out.println("--- 3. Iterating with Enhanced For Loop ---");
+        // Traditional way
+        for (String name : List.of("Alice", "Bob", "Charlie")) {
+            System.out.println("Traditional name: " + name);
+        }
+
+        // With var: concise
+        var fruits = List.of("Apple", "Banana", "Cherry");
+        for (var fruit : fruits) { // Inferred as String
+            System.out.println("Var fruit: " + fruit);
+        }
+        System.out.println();
+
+
+        System.out.println("--- 4. Try-with-resources ---");
+        String filePath = "example.txt"; // Make sure example.txt exists or create it
+        try {
+            // Create a dummy file for the example
+            java.nio.file.Files.writeString(java.nio.file.Paths.get(filePath), "Line 1\nLine 2\nLine 3");
+
+            // Traditional way
+            try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+                System.out.println("Traditional reader line: " + reader.readLine());
+            }
+
+            // With var: neat
+            try (var varReader = new BufferedReader(new FileReader(filePath))) { // Inferred as BufferedReader
+                System.out.println("Var reader line: " + varReader.readLine());
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading file: " + e.getMessage());
+        }
+        System.out.println();
+
+
+        System.out.println("--- 5. Lambda Parameters (Java 11+) ---");
+        // Note: You can use var with lambda parameters since Java 11.
+        // It's mainly useful when you need to apply annotations to lambda parameters.
+
+        // Without var (or with var for a single parameter without annotations)
+        Function<Integer, Integer> increment = x -> x + 1;
+        System.out.println("Increment (x -> x+1): " + increment.apply(5));
+
+        // With var (explicit type on parameter even if inferred, allows annotations)
+        // Function<Integer, Integer> incrementWithVar = (var x) -> x + 1;
+        // System.out.println("Increment (var x -> x+1): " + incrementWithVar.apply(10));
+        // You'd typically use 'var' here if you were adding annotations, e.g.:
+        // Function<Integer, Integer> annotatedIncrement = (@NonNull var x) -> x + 1;
+        System.out.println();
+
+
+        System.out.println("--- 6. Array Literals (with 'new' keyword) ---");
+        // Traditional
+        int[] numbersArray = new int[]{1, 2, 3};
+        // With var
+        var varNumbersArray = new int[]{4, 5, 6}; // Inferred as int[]
+        System.out.println("varNumbersArray type: " + varNumbersArray.getClass().getName() + ", first element: " + varNumbersArray[0]);
+        // NOTE: You cannot use var with the simplified array initializer syntax:
+        // var anotherArray = {7, 8, 9}; // This is a compile error!
+        System.out.println();
+
+
+        System.out.println("--- 7. Method Return Value ---");
+        var result = getGreeting(); // Inferred as String
+        System.out.println("getGreeting result: " + result);
+
+        var complexResult = createComplexMap(); // Inferred as Map<String, Set<Double>>
+        System.out.println("createComplexMap result type: " + complexResult.getClass().getName() + ", value: " + complexResult);
+        System.out.println();
+    }
+
+    public static String getGreeting() {
+        return "Hello from a method!";
+    }
+
+    public static Map<String, Set<Double>> createComplexMap() {
+        Map<String, Set<Double>> map = new HashMap<>();
+        map.put("key1", Set.of(1.1, 2.2));
+        map.put("key2", Set.of(3.3, 4.4));
+        return map;
+    }
+}
+```
+
+---
+
+## 2. When to Use `var`
+
+*   **Reduce Boilerplate:** Especially with complex generic types (e.g., `Map<String, List<CustomObject>> myMap = new HashMap<>();` becomes `var myMap = new HashMap<>();`).
+*   **Improve Readability:** When the type is immediately obvious from the right-hand side of the assignment.
+*   **Chained Invocations:** `var reader = new BufferedReader(new FileReader(new File("test.txt")));` is much cleaner.
+*   **Loop Variables:** `for (var item : collection)` is concise.
+
+## 3. When NOT to Use `var` (Restrictions and Bad Practices)
+
+Here are situations where `var` is either invalid or detrimental to code quality:
+
+```java
+public class VarRestrictions {
+
+    // 1. Not allowed for fields (member variables)
+    // var field = 10; // Compile-time error: 'var' is not allowed in a field declaration
+    public int myField = 10; // Must be explicit type
+
+    public void someMethod() {
+        // 2. Must be initialized
+        // var x; // Compile-time error: Cannot infer type for local variable initialized to 'null' or without initializer
+
+        // 3. Cannot be initialized to null without a cast
+        // var y = null; // Compile-time error: Cannot infer type for local variable initialized to 'null'
+        var z = (String) null; // This works, type is inferred as String
+        System.out.println("z: " + z);
+
+
+        // 4. Cannot infer type from a diamond operator without explicit type arguments if needed
+        // var list = new ArrayList<>(); // Inferred as ArrayList<Object>, which might not be what you want
+        List<String> stringList = new ArrayList<>(); // Better to be explicit or use var with explicit generics
+        var inferredStringList = new ArrayList<String>(); // This is fine
+
+        // 5. Not allowed for method parameters
+        // public void process(var data) { } // Compile-time error: 'var' is not allowed in a method parameter
+
+        // 6. Not allowed as a method return type
+        // public var getValue() { return "hello"; } // Compile-time error: 'var' is not allowed as a method return type
+
+        // 7. Not allowed in a catch block parameter
+        try {
+            throw new IllegalArgumentException("Test exception");
+        } catch (/* var */ IllegalArgumentException e) { // Compile-time error if 'var' is used here
+            System.err.println("Caught exception: " + e.getMessage());
+        }
+
+        // 8. Not allowed with simplified array initializer syntax
+        // var numbers = {1, 2, 3}; // Compile-time error: Array initializer is not allowed here
+        var numbers = new int[]{1, 2, 3}; // This is correct (as shown in main example)
+
+        // 9. When the inferred type makes the code less readable or ambiguous
+        // Imagine a method returning a generic interface:
+        // interface Service<T> { T get(); }
+        // Service<User> userService = () -> new PremiumUser();
+        // var user = userService.get(); // user's type is User, but concrete type PremiumUser might be important later
+        // If the concrete type (PremiumUser) is important, explicit declaration might be clearer:
+        // PremiumUser user = (PremiumUser) userService.get();
+        // Or if 'userService' is hidden in a complex expression:
+        // var result = someComplexOperationReturningAnObject();
+        // If 'someComplexOperation...' is not clear, 'var' can hide the actual type and make debugging harder.
+    }
+}
+```
+
+---
+
+## Conclusion
+
+The `var` keyword is a powerful feature that can make your Java code more concise and readable by reducing repetitive type declarations. However, it's a tool that should be used thoughtfully. Always consider whether using `var` enhances clarity or hinders it, especially for less experienced developers who might rely on explicit type declarations for understanding. Modern IDEs (like IntelliJ IDEA, Eclipse, VS Code) provide excellent support for `var`, allowing you to see the inferred type when you hover over the variable, which greatly aids in using it effectively.
+
+You > webclient call  2 rest services in async manner example
+This example demonstrates how to use Spring WebClient to call two different REST services asynchronously and combine their results.
+
+We'll set up:
+1.  **Two simple backend REST services** using Spring Boot (these will simulate external APIs).
+2.  **A client application** using Spring WebClient to call these two services concurrently.
+
+---
+
+### 1. Project Setup
+
+Create a new Spring Boot project. You can use Spring Initializr (start.spring.io) with the following dependencies:
+*   `Spring WebFlux` (for WebClient)
+*   `Spring Web` (to create the backend REST controllers easily)
+*   `Lombok` (optional, for less boilerplate)
+
+**`pom.xml` dependencies (if not using Initializr):**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version> <!-- Use your desired Spring Boot version -->
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>webclient-async-example</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>webclient-async-example</name>
+    <description>Demo project for WebClient async calls</description>
+
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+```
+
+---
+
+### 2. Backend REST Services (Simulators)
+
+We'll create two simple controllers that return data after a short delay. This delay simulates network latency or processing time.
+
+**`src/main/java/com/example/webclientasyncexample/backend/Service1Controller.java`**
+
+```java
+package com.example.webclientasyncexample.backend;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
+
+@RestController
+@RequestMapping("/api/service1")
+@Slf4j
+public class Service1Controller {
+
+    @GetMapping
+    public Mono<Service1Response> getService1Data() {
+        log.info("Received request for Service 1. Simulating work for 2000ms...");
+        // Simulate a blocking operation or delay (for non-reactive backend)
+        // For a reactive backend, use Mono.delay or similar non-blocking approach
+        try {
+            Thread.sleep(2000); // Simulate 2-second delay
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Mono.error(e);
+        }
+        Service1Response response = new Service1Response("Data from Service 1", System.currentTimeMillis());
+        log.info("Service 1 finished. Returning: {}", response);
+        return Mono.just(response);
+    }
+}
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class Service1Response {
+    private String message;
+    private long timestamp;
+}
+```
+
+**`src/main/java/com/example/webclientasyncexample/backend/Service2Controller.java`**
+
+```java
+package com.example.webclientasyncexample.backend;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
+
+@RestController
+@RequestMapping("/api/service2")
+@Slf4j
+public class Service2Controller {
+
+    @GetMapping
+    public Mono<Service2Response> getService2Data() {
+        log.info("Received request for Service 2. Simulating work for 1500ms...");
+        try {
+            Thread.sleep(1500); // Simulate 1.5-second delay
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Mono.error(e);
+        }
+        Service2Response response = new Service2Response("Data from Service 2", "Important detail");
+        log.info("Service 2 finished. Returning: {}", response);
+        return Mono.just(response);
+    }
+}
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class Service2Response {
+    private String info;
+    private String detail;
+}
+```
+
+**Note on `Thread.sleep`:** In a *real* reactive application, you'd avoid `Thread.sleep` in controller methods as it blocks the thread. Here, we use it to *simulate* a slow external (potentially blocking) API for the purpose of demonstrating `WebClient`'s async capabilities on the client side. If these backend services were truly reactive, they might use `Mono.delay()` instead of `Thread.sleep()`.
+
+---
+
+### 3. WebClient Configuration
+
+Define a `WebClient` bean with a base URL.
+
+**`src/main/java/com/example/webclientasyncexample/client/WebClientConfig.java`**
+
+```java
+package com.example.webclientasyncexample.client;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.reactive.function.client.WebClient;
+
+@Configuration
+public class WebClientConfig {
+
+    @Bean
+    public WebClient webClient(WebClient.Builder builder) {
+        // Assuming both services are running on the same local server as the client for simplicity
+        // If services are separate, use their respective base URLs.
+        return builder.baseUrl("http://localhost:8080")
+                .build();
+    }
+}
+```
+
+---
+
+### 4. Client Application - Making Async Calls
+
+This is the core part. We'll use `WebClient` to make two `Mono` calls and then combine them using `Mono.zip()`.
+
+**`src/main/java/com/example/webclientasyncexample/client/ExternalServiceCaller.java`**
+
+```java
+package com.example.webclientasyncexample.client;
+
+import com.example.webclientasyncexample.backend.Service1Response;
+import com.example.webclientasyncexample.backend.Service2Response;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+@Service
+@Slf4j
+public class ExternalServiceCaller {
+
+    private final WebClient webClient;
+
+    public ExternalServiceCaller(WebClient webClient) {
+        this.webClient = webClient;
+    }
+
+    public Mono<CombinedResponse> callServicesInAsync() {
+        long startTime = System.currentTimeMillis();
+        log.info("Client started calling external services...");
+
+        // 1. Define the first asynchronous call
+        Mono<Service1Response> service1Mono = webClient.get()
+                .uri("/api/service1")
+                .retrieve()
+                .bodyToMono(Service1Response.class)
+                .doOnSuccess(res -> log.info("Service 1 call completed: {}", res.getMessage()))
+                .doOnError(e -> log.error("Error calling Service 1: {}", e.getMessage()));
+
+        // 2. Define the second asynchronous call
+        Mono<Service2Response> service2Mono = webClient.get()
+                .uri("/api/service2")
+                .retrieve()
+                .bodyToMono(Service2Response.class)
+                .doOnSuccess(res -> log.info("Service 2 call completed: {}", res.getInfo()))
+                .doOnError(e -> log.error("Error calling Service 2: {}", e.getMessage()));
+
+        // 3. Combine the results of both Monos concurrently
+        // Mono.zip subscribes to all source Monos concurrently and emits a Tuple2 (or a custom type if a combiner is provided)
+        // when all sources complete.
+        return Mono.zip(service1Mono, service2Mono,
+                (service1Res, service2Res) -> new CombinedResponse(
+                        service1Res.getMessage(),
+                        service1Res.getTimestamp(),
+                        service2Res.getInfo(),
+                        service2Res.getDetail(),
+                        System.currentTimeMillis() - startTime
+                ))
+                .doOnSuccess(combinedResponse -> log.info("All services completed in {} ms. Combined result: {}",
+                        combinedResponse.getElapsedTimeMillis(), combinedResponse))
+                .doOnError(e -> log.error("One or more service calls failed: {}", e.getMessage()));
+    }
+}
+
+// DTOs for the responses (lombok for brevity)
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class CombinedResponse {
+    private String service1Message;
+    private long service1Timestamp;
+    private String service2Info;
+    private String service2Detail;
+    private long elapsedTimeMillis;
+}
+```
+
+---
+
+### 5. Main Application Runner
+
+To trigger the `callServicesInAsync()` method when the application starts, we'll use a `CommandLineRunner`.
+
+**`src/main/java/com/example/webclientasyncexample/WebclientAsyncExampleApplication.java`**
+
+```java
+package com.example.webclientasyncexample;
+
+import com.example.webclientasyncexample.client.ExternalServiceCaller;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+
+@SpringBootApplication
+@Slf4j
+public class WebclientAsyncExampleApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(WebclientAsyncExampleApplication.class, args);
+    }
+
+    @Bean
+    public CommandLineRunner run(ExternalServiceCaller serviceCaller) {
+        return args -> {
+            log.info("Application starting async service calls...");
+            serviceCaller.callServicesInAsync()
+                    .block(); // Block to wait for completion in a CommandLineRunner.
+                             // In a real reactive application, you would return the Mono
+                             // or subscribe to it without blocking if the main thread doesn't need to wait.
+            log.info("Application finished async service calls.");
+        };
+    }
+}
+```
+
+---
+
+### How to Run and Observe
+
+1.  **Run the `WebclientAsyncExampleApplication`** (e.g., from your IDE or by `mvn spring-boot:run`).
+2.  **Observe the console output.**
+
+**Expected Output Explanation:**
+
+*   You will see the client initiating calls to both services.
+*   The backend service logs (`Received request for Service 1`, `Received request for Service 2`) will appear *almost simultaneously*. This is because the client sends both requests without waiting for the first one to complete.
+*   Service 2 (1500ms delay) will finish *before* Service 1 (2000ms delay).
+*   The client's `doOnSuccess` for Service 2 will log before Service 1's.
+*   The `Mono.zip` will only emit its combined result *after* the longest-running service (Service 1 in this case) completes.
+*   The total `elapsedTimeMillis` for the client will be approximately the duration of the *longest* service call (around 2000ms), not the sum of both (3500ms). This demonstrates the asynchronous, concurrent execution.
+
+**Example Log Snippets (order might vary slightly):**
+
+```
+// ... (Spring Boot startup logs) ...
+
+// Client starts
+INFO [main] com.example.webclientasyncexample.WebclientAsyncExampleApplication : Application starting async service calls...
+INFO [main] com.example.webclientasyncexample.client.ExternalServiceCaller  : Client started calling external services...
+
+// Backend services receive requests concurrently
+INFO [reactor-http-nio-2] com.example.webclientasyncexample.backend.Service1Controller : Received request for Service 1. Simulating work for 2000ms...
+INFO [reactor-http-nio-3] com.example.webclientasyncexample.backend.Service2Controller : Received request for Service 2. Simulating work for 1500ms...
+
+// Service 2 finishes first
+INFO [reactor-http-nio-3] com.example.webclientasyncexample.backend.Service2Controller : Service 2 finished. Returning: Service2Response(info=Data from Service 2, detail=Important detail)
+INFO [reactor-http-nio-5] com.example.webclientasyncexample.client.ExternalServiceCaller : Service 2 call completed: Data from Service 2
+
+// Service 1 finishes
+INFO [reactor-http-nio-2] com.example.webclientasyncexample.backend.Service1Controller : Service 1 finished. Returning: Service1Response(message=Data from Service 1, timestamp=1678886400000)
+INFO [reactor-http-nio-5] com.example.webclientasyncexample.client.ExternalServiceCaller : Service 1 call completed: Data from Service 1
+
+// Client combines results after both are done
+INFO [main] com.example.webclientasyncexample.client.ExternalServiceCaller  : All services completed in 20XX ms. Combined result: CombinedResponse(...)
+INFO [main] com.example.webclientasyncexample.WebclientAsyncExampleApplication : Application finished async service calls.
+```
+
+The total elapsed time being around `2000ms` confirms that the calls ran in parallel, and the total duration was dictated by the slowest service.
+
+You > 
